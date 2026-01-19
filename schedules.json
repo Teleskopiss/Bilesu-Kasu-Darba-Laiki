@@ -1,0 +1,175 @@
+{
+  "lastUpdated": "2026-01-19T21:38:42.946Z",
+  "lines": {
+    "tukums": {
+      "name": "Tukums līnija",
+      "stations": {
+        "Rīga": {
+          "type": "segments",
+          "weekday": [
+            "04:35-23:50"
+          ],
+          "saturday": [
+            "04:35-23:50"
+          ],
+          "sunday": [
+            "04:35-23:50"
+          ]
+        },
+        "Torņakalns": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        },
+        "Zasulauks": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        },
+        "Zolitūde": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        },
+        "Imanta": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        },
+        "Bulduri": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        },
+        "Majori": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        },
+        "Dubulti": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        },
+        "Sloka": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        },
+        "Tukums I": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        }
+      }
+    },
+    "jelgavas": {
+      "name": "Jelgavas līnija",
+      "stations": {
+        "Rīga": {
+          "type": "segments",
+          "weekday": [
+            "04:35-23:50"
+          ],
+          "saturday": [
+            "04:35-23:50"
+          ],
+          "sunday": [
+            "04:35-23:50"
+          ]
+        },
+        "Torņakalns": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        },
+        "Olaine": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        },
+        "Jelgava": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        }
+      }
+    },
+    "skulte": {
+      "name": "Skulte līnija",
+      "stations": {
+        "Rīga": {
+          "type": "segments",
+          "weekday": [
+            "04:35-23:50"
+          ],
+          "saturday": [
+            "04:35-23:50"
+          ],
+          "sunday": [
+            "04:35-23:50"
+          ]
+        },
+        "Zemitāni": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        }
+      }
+    },
+    "aizkraukles": {
+      "name": "Aizkraukles līnija",
+      "stations": {
+        "Rīga": {
+          "type": "segments",
+          "weekday": [
+            "04:35-23:50"
+          ],
+          "saturday": [
+            "04:35-23:50"
+          ],
+          "sunday": [
+            "04:35-23:50"
+          ]
+        },
+        "Salaspils": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        },
+        "Ogre": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        },
+        "Lielvārde": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        },
+        "Aizkraukle": {
+          "type": "segments",
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
+        }
+      }
+    }
+  }
+}
