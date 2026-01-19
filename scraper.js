@@ -52,18 +52,19 @@ async function scrapeStation(url) {
       sunday: []
     };
     
-    // Find the table with schedule data
+    // Get all text content from the page
+    const pageText = $('body').text();
+    
+    // Method 1: Try table format first (like Bulduri)
     let weekdayTimes = [];
     let weekendTimes = [];
     
-    // Look for table rows - ViVi uses a specific table structure
     $('table tr').each((i, row) => {
       const cells = $(row).find('td');
       if (cells.length >= 2) {
         const col1 = $(cells[0]).text().trim();
         const col2 = $(cells[1]).text().trim();
         
-        // Check if this is a data row (contains time format like "7.20 - 9.35")
         if (col1.match(/\d{1,2}[.:]\d{2}\s*-\s*\d{1,2}[.:]\d{2}/)) {
           weekdayTimes.push(col1);
           weekendTimes.push(col2);
@@ -71,12 +72,75 @@ async function scrapeStation(url) {
       }
     });
     
-    // Convert times to standard format (HH:MM-HH:MM)
-    schedule.weekday = weekdayTimes.map(normalizeTime).filter(t => t);
-    schedule.saturday = weekendTimes.map(normalizeTime).filter(t => t);
-    schedule.sunday = weekendTimes.map(normalizeTime).filter(t => t);
+    if (weekdayTimes.length > 0) {
+      // Table format found
+      console.log(`  Format: Table (${weekdayTimes.length} segments)`);
+      schedule.weekday = weekdayTimes.map(normalizeTime).filter(t => t);
+      schedule.saturday = weekendTimes.map(normalizeTime).filter(t => t);
+      schedule.sunday = weekendTimes.map(normalizeTime).filter(t => t);
+      return schedule;
+    }
     
-    console.log(`  Found ${schedule.weekday.length} weekday segments, ${schedule.saturday.length} weekend segments`);
+    // Method 2: Try text format (like Torņakalns or Zasulauks)
+    
+    // Check for "katru dienu" (every day)
+    const everyDayMatch = pageText.match(/katru dienu[^0-9]*(\d{1,2}[.:]\d{2})[^0-9]*līdz[^0-9]*(\d{1,2}[.:]\d{2})/i);
+    if (everyDayMatch) {
+      console.log(`  Format: Every day`);
+      const time = normalizeTime(`${everyDayMatch[1]} - ${everyDayMatch[2]}`);
+      if (time) {
+        schedule.weekday = [time];
+        schedule.saturday = [time];
+        schedule.sunday = [time];
+        return schedule;
+      }
+    }
+    
+    // Check for "darba dienās" (weekdays)
+    const weekdayMatch = pageText.match(/darba dienās[^0-9]*(\d{1,2}[.:]\d{2})[^0-9]*līdz[^0-9]*(\d{1,2}[.:]\d{2})/i);
+    if (weekdayMatch) {
+      console.log(`  Format: Text - weekdays only`);
+      const time = normalizeTime(`${weekdayMatch[1]} - ${weekdayMatch[2]}`);
+      if (time) {
+        schedule.weekday = [time];
+      }
+    }
+    
+    // Check for "brīvdienās" (weekends/holidays)
+    const weekendMatch = pageText.match(/brīvdienās[^0-9]*(\d{1,2}[.:]\d{2})[^0-9]*līdz[^0-9]*(\d{1,2}[.:]\d{2})/i);
+    if (weekendMatch) {
+      console.log(`  Format: Text - with weekend hours`);
+      const time = normalizeTime(`${weekendMatch[1]} - ${weekendMatch[2]}`);
+      if (time) {
+        schedule.saturday = [time];
+        schedule.sunday = [time];
+      }
+    }
+    
+    // Check if explicitly closed on weekends
+    if (pageText.match(/brīvdienās.*slēgts/i) || pageText.match(/svētku dienās.*slēgts/i)) {
+      console.log(`  Note: Closed on weekends`);
+      schedule.saturday = [];
+      schedule.sunday = [];
+    }
+    
+    // Method 3: Try to find any time segments in the text
+    if (schedule.weekday.length === 0 && schedule.saturday.length === 0) {
+      console.log(`  Trying to extract time segments from text...`);
+      const timeMatches = pageText.match(/\d{1,2}[.:]\d{2}\s*-\s*\d{1,2}[.:]\d{2}/g);
+      if (timeMatches && timeMatches.length > 0) {
+        const times = timeMatches.map(normalizeTime).filter(t => t);
+        if (times.length > 0) {
+          console.log(`  Found ${times.length} time segments (assuming weekday schedule)`);
+          schedule.weekday = times;
+          // If not explicitly mentioned as weekday-only, assume same for weekends
+          if (!pageText.match(/darba dienās/i)) {
+            schedule.saturday = times;
+            schedule.sunday = times;
+          }
+        }
+      }
+    }
     
     return schedule;
   } catch (error) {
@@ -118,7 +182,10 @@ async function scrapeAllStations() {
   };
   
   for (const [lineId, stations] of Object.entries(STATIONS)) {
-    console.log(`\nScraping ${lineId} line...`);
+    console.log(`\n${'='.repeat(50)}`);
+    console.log(`Scraping ${lineId} line...`);
+    console.log('='.repeat(50));
+    
     data.lines[lineId] = {
       name: lineId.charAt(0).toUpperCase() + lineId.slice(1) + ' līnija',
       stations: {
@@ -130,10 +197,13 @@ async function scrapeAllStations() {
     for (const station of stations) {
       console.log(`\n  Station: ${station.name}`);
       const schedule = await scrapeStation(station.url);
+      
       if (schedule && (schedule.weekday.length > 0 || schedule.saturday.length > 0)) {
         data.lines[lineId].stations[station.name] = schedule;
+        console.log(`  ✓ Weekdays: ${schedule.weekday.length} segments`);
+        console.log(`  ✓ Weekends: ${schedule.saturday.length} segments`);
       } else {
-        console.log(`  Warning: No schedule data found for ${station.name}`);
+        console.log(`  ⚠ Warning: No schedule data found for ${station.name}`);
         // Use empty schedule as fallback
         data.lines[lineId].stations[station.name] = {
           type: 'segments',
@@ -142,6 +212,7 @@ async function scrapeAllStations() {
           sunday: []
         };
       }
+      
       // Wait a bit to avoid overwhelming the server
       await new Promise(resolve => setTimeout(resolve, 1500));
     }
@@ -151,17 +222,18 @@ async function scrapeAllStations() {
 }
 
 async function main() {
+  console.log('\n' + '='.repeat(50));
   console.log('Starting ViVi schedule scraper...');
-  console.log('======================================\n');
+  console.log('='.repeat(50));
   
   const data = await scrapeAllStations();
   
   fs.writeFileSync('schedules.json', JSON.stringify(data, null, 2));
   
-  console.log('\n======================================');
+  console.log('\n' + '='.repeat(50));
   console.log('✓ Schedules saved to schedules.json');
   console.log(`✓ Last updated: ${data.lastUpdated}`);
-  console.log('======================================');
+  console.log('='.repeat(50) + '\n');
 }
 
 main().catch(console.error);
