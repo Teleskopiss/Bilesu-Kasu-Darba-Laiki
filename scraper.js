@@ -1,0 +1,131 @@
+// scraper.js
+const axios = require('axios');
+const cheerio = require('cheerio');
+const fs = require('fs');
+
+// Rīga station is excluded - schedule is complex but never changes
+const RIGA_STATIC_SCHEDULE = {
+  type: 'segments',
+  weekday: ['04:35-23:50'],
+  saturday: ['04:35-23:50'],
+  sunday: ['04:35-23:50']
+};
+
+const STATIONS = {
+  tukums: [
+    { name: 'Torņakalns', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/tornakalns/' },
+    { name: 'Zasulauks', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/zasulauks/' },
+    { name: 'Zolitūde', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/zolitude/' },
+    { name: 'Imanta', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/imanta/' },
+    { name: 'Bulduri', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/bulduri/' },
+    { name: 'Majori', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/majori/' },
+    { name: 'Dubulti', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/dubulti/' },
+    { name: 'Sloka', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/sloka/' },
+    { name: 'Tukums I', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/tukums-i/' }
+  ],
+  jelgavas: [
+    { name: 'Torņakalns', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/tornakalns/' },
+    { name: 'Olaine', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/olaine/' },
+    { name: 'Jelgava', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/jelgava/' }
+  ],
+  skulte: [
+    { name: 'Zemitāni', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/zemitani/' }
+  ],
+  aizkraukles: [
+    { name: 'Salaspils', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/salaspils/' },
+    { name: 'Ogre', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/ogre/' },
+    { name: 'Lielvārde', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/lielvarde/' },
+    { name: 'Aizkraukle', url: 'https://www.vivi.lv/lv/biletes/bilesu-kasu-darba-laiki/aizkraukle/' }
+  ]
+};
+
+async function scrapeStation(url) {
+  try {
+    const response = await axios.get(url);
+    const $ = cheerio.load(response.data);
+    
+    // Extract schedule data - adjust selectors based on actual HTML structure
+    const schedule = {
+      type: 'segments',
+      weekday: [],
+      saturday: [],
+      sunday: []
+    };
+    
+    // Try to find schedule information in the page
+    // This is a generic parser - may need adjustment based on actual HTML
+    $('.schedule-table, .working-hours, table').each((i, table) => {
+      $(table).find('tr').each((j, row) => {
+        const cells = $(row).find('td');
+        if (cells.length >= 2) {
+          const day = $(cells[0]).text().trim().toLowerCase();
+          const hours = $(cells[1]).text().trim();
+          
+          if (day.includes('darbadie') || day.includes('pirmd') || day.includes('otrd')) {
+            schedule.weekday = parseHours(hours);
+          } else if (day.includes('sestdie')) {
+            schedule.saturday = parseHours(hours);
+          } else if (day.includes('svētdie')) {
+            schedule.sunday = parseHours(hours);
+          }
+        }
+      });
+    });
+    
+    return schedule;
+  } catch (error) {
+    console.error(`Error scraping ${url}:`, error.message);
+    return null;
+  }
+}
+
+function parseHours(hoursText) {
+  // Parse hours like "06:30-09:00, 09:10-11:50" into array
+  if (!hoursText || hoursText.includes('slēgts') || hoursText.includes('nedarbojas')) {
+    return [];
+  }
+  
+  const segments = hoursText.split(',').map(s => s.trim()).filter(s => s);
+  return segments.filter(s => s.match(/\d{1,2}:\d{2}/));
+}
+
+async function scrapeAllStations() {
+  const data = {
+    lastUpdated: new Date().toISOString(),
+    lines: {}
+  };
+  
+  for (const [lineId, stations] of Object.entries(STATIONS)) {
+    console.log(`Scraping ${lineId} line...`);
+    data.lines[lineId] = {
+      name: lineId.charAt(0).toUpperCase() + lineId.slice(1) + ' līnija',
+      stations: {
+        // Add Rīga static schedule to every line
+        'Rīga': RIGA_STATIC_SCHEDULE
+      }
+    };
+    
+    for (const station of stations) {
+      console.log(`  - ${station.name}`);
+      const schedule = await scrapeStation(station.url);
+      if (schedule) {
+        data.lines[lineId].stations[station.name] = schedule;
+      }
+      // Wait a bit to avoid overwhelming the server
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
+  
+  return data;
+}
+
+async function main() {
+  console.log('Starting ViVi schedule scraper...');
+  const data = await scrapeAllStations();
+  
+  fs.writeFileSync('schedules.json', JSON.stringify(data, null, 2));
+  console.log('Schedules saved to schedules.json');
+  console.log(`Last updated: ${data.lastUpdated}`);
+}
+
+main().catch(console.error);
