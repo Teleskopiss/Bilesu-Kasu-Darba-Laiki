@@ -39,6 +39,31 @@ const STATIONS = {
   ]
 };
 
+function normalizeTime(timeStr) {
+  if (!timeStr) return null;
+  
+  timeStr = timeStr.trim();
+  
+  // Skip if it's closed or a dash
+  if (timeStr.toLowerCase().includes('slēgts') || 
+      timeStr.toLowerCase().includes('nedarbojas') ||
+      timeStr === '-') {
+    return null;
+  }
+  
+  // Convert "7.00 - 8.40" or "7:00 - 8:40" to "07:00-08:40"
+  const match = timeStr.match(/(\d{1,2})[.:](\d{2})\s*-\s*(\d{1,2})[.:](\d{2})/);
+  if (match) {
+    const startHour = match[1].padStart(2, '0');
+    const startMin = match[2];
+    const endHour = match[3].padStart(2, '0');
+    const endMin = match[4];
+    return `${startHour}:${startMin}-${endHour}:${endMin}`;
+  }
+  
+  return null;
+}
+
 async function scrapeStation(url) {
   try {
     console.log(`  Fetching: ${url}`);
@@ -52,120 +77,79 @@ async function scrapeStation(url) {
       sunday: []
     };
     
-    // Get all text content from the page
-    const pageText = $('body').text();
+    // Strategy: Find ALL individual time rows in the HTML
+    // Look for elements that contain ONLY a time pattern (not part of a sentence)
     
-    // METHOD 1: Try table format first (like Bulduri)
-    let weekdayTimes = [];
-    let weekendTimes = [];
+    let inWeekdaySection = false;
+    let inWeekendSection = false;
+    let inEverydaySection = false;
     
-    $('table tr').each((i, row) => {
-      const cells = $(row).find('td');
-      if (cells.length >= 2) {
-        const col1 = $(cells[0]).text().trim();
-        const col2 = $(cells[1]).text().trim();
-        
-        if (col1.match(/\d{1,2}[.:]\d{2}\s*-\s*\d{1,2}[.:]\d{2}/)) {
-          weekdayTimes.push(col1);
-          weekendTimes.push(col2);
+    // Scan all text elements on the page
+    $('*').each((i, elem) => {
+      const text = $(elem).text().trim();
+      const directText = $(elem).contents().filter(function() {
+        return this.nodeType === 3; // Text nodes only
+      }).text().trim();
+      
+      // Check if this is a section header
+      if (text.match(/^Darba\s+dienās$/i)) {
+        inWeekdaySection = true;
+        inWeekendSection = false;
+        inEverydaySection = false;
+        console.log(`  Found section: Darba dienās`);
+        return;
+      }
+      if (text.match(/^Brīvdienās$/i)) {
+        inWeekdaySection = false;
+        inWeekendSection = true;
+        inEverydaySection = false;
+        console.log(`  Found section: Brīvdienās`);
+        return;
+      }
+      if (text.match(/^Katru\s+dienu$/i)) {
+        inWeekdaySection = false;
+        inWeekendSection = false;
+        inEverydaySection = true;
+        console.log(`  Found section: Katru dienu`);
+        return;
+      }
+      
+      // Check if this element contains ONLY a time range (no other text)
+      // Must be format like "7.00 - 8.40" or "7:00 - 8:40"
+      const exactTimeMatch = text.match(/^\s*\d{1,2}[.:]\d{2}\s*-\s*\d{1,2}[.:]\d{2}\s*$/);
+      
+      if (exactTimeMatch) {
+        const normalizedTime = normalizeTime(text);
+        if (normalizedTime) {
+          if (inEverydaySection) {
+            schedule.weekday.push(normalizedTime);
+            schedule.saturday.push(normalizedTime);
+            schedule.sunday.push(normalizedTime);
+            console.log(`    Every day: ${normalizedTime}`);
+          } else if (inWeekdaySection) {
+            schedule.weekday.push(normalizedTime);
+            console.log(`    Weekday: ${normalizedTime}`);
+          } else if (inWeekendSection) {
+            schedule.saturday.push(normalizedTime);
+            schedule.sunday.push(normalizedTime);
+            console.log(`    Weekend: ${normalizedTime}`);
+          }
         }
       }
     });
     
-    if (weekdayTimes.length > 0) {
-      console.log(`  Format: Table (${weekdayTimes.length} segments)`);
-      schedule.weekday = weekdayTimes.map(normalizeTime).filter(t => t);
-      schedule.saturday = weekendTimes.map(normalizeTime).filter(t => t);
-      schedule.sunday = weekendTimes.map(normalizeTime).filter(t => t);
-      return schedule;
-    }
+    // Remove duplicates
+    schedule.weekday = [...new Set(schedule.weekday)];
+    schedule.saturday = [...new Set(schedule.saturday)];
+    schedule.sunday = [...new Set(schedule.sunday)];
     
-    // METHOD 2: Check for semicolon-separated time segments (like Ogre)
-    // Pattern: "4.55 - 6.10; 6.20 - 9.10; 9.30 - 11.10"
-    const semicolonMatch = pageText.match(/(\d{1,2}[.:]\d{2}\s*-\s*\d{1,2}[.:]\d{2}\s*;\s*)+\d{1,2}[.:]\d{2}\s*-\s*\d{1,2}[.:]\d{2}/);
-    if (semicolonMatch) {
-      console.log(`  Format: Semicolon-separated segments`);
-      const segments = pageText.match(/\d{1,2}[.:]\d{2}\s*-\s*\d{1,2}[.:]\d{2}/g);
-      if (segments) {
-        const normalizedSegments = segments.map(normalizeTime).filter(t => t);
-        
-        // Check if it's "katru dienu" (every day) or specific days
-        if (pageText.match(/katru\s+dien/i)) {
-          console.log(`    Applied to: Every day`);
-          schedule.weekday = normalizedSegments;
-          schedule.saturday = normalizedSegments;
-          schedule.sunday = normalizedSegments;
-        } else if (pageText.match(/darba\s+dien/i)) {
-          console.log(`    Applied to: Weekdays only`);
-          schedule.weekday = normalizedSegments;
-        }
-        return schedule;
-      }
-    }
-    
-    // METHOD 3: Text-based parsing (like Torņakalns)
-    // Check for "darba dienās no X līdz Y"
-    const weekdayMatch = pageText.match(/darba\s+dienās[^0-9]*(\d{1,2}[.:]\d{2})[^0-9]*līdz[^0-9]*(\d{1,2}[.:]\d{2})/i);
-    if (weekdayMatch) {
-      console.log(`  Format: Text - weekdays only`);
-      const time = normalizeTime(`${weekdayMatch[1]} - ${weekdayMatch[2]}`);
-      if (time) {
-        schedule.weekday = [time];
-      }
-    }
-    
-    // Check for "brīvdienās no X līdz Y"
-    const weekendMatch = pageText.match(/brīvdienās[^0-9]*(\d{1,2}[.:]\d{2})[^0-9]*līdz[^0-9]*(\d{1,2}[.:]\d{2})/i);
-    if (weekendMatch) {
-      console.log(`  Format: Text - with weekend hours`);
-      const time = normalizeTime(`${weekendMatch[1]} - ${weekendMatch[2]}`);
-      if (time) {
-        schedule.saturday = [time];
-        schedule.sunday = [time];
-      }
-    }
-    
-    // Check if explicitly closed on weekends
-    if (pageText.match(/brīvdienās.*slēgts/i) || pageText.match(/svētku\s+dienās.*slēgts/i)) {
-      console.log(`  Note: Closed on weekends`);
-      schedule.saturday = [];
-      schedule.sunday = [];
-    }
-    
-    // Log final result
-    console.log(`  Result: ${schedule.weekday.length} weekday segments, ${schedule.saturday.length} weekend segments`);
+    console.log(`  Final result: ${schedule.weekday.length} weekday, ${schedule.saturday.length} weekend segments`);
     
     return schedule;
   } catch (error) {
     console.error(`  Error scraping ${url}:`, error.message);
     return null;
   }
-}
-
-function normalizeTime(timeStr) {
-  if (!timeStr) return null;
-  
-  // Remove extra whitespace
-  timeStr = timeStr.trim();
-  
-  // Check if it's closed
-  if (timeStr.toLowerCase().includes('slēgts') || 
-      timeStr.toLowerCase().includes('nedarbojas') ||
-      timeStr === '-') {
-    return null;
-  }
-  
-  // Convert format like "7.20 - 9.35" or "7:20 - 9:35" to "07:20-09:35"
-  const match = timeStr.match(/(\d{1,2})[.:](\d{2})\s*-\s*(\d{1,2})[.:](\d{2})/);
-  if (match) {
-    const startHour = match[1].padStart(2, '0');
-    const startMin = match[2];
-    const endHour = match[3].padStart(2, '0');
-    const endMin = match[4];
-    return `${startHour}:${startMin}-${endHour}:${endMin}`;
-  }
-  
-  return null;
 }
 
 async function scrapeAllStations() {
@@ -175,27 +159,25 @@ async function scrapeAllStations() {
   };
   
   for (const [lineId, stations] of Object.entries(STATIONS)) {
-    console.log(`\n${'='.repeat(50)}`);
+    console.log(`\n${'='.repeat(60)}`);
     console.log(`Scraping ${lineId} line...`);
-    console.log('='.repeat(50));
+    console.log('='.repeat(60));
     
     data.lines[lineId] = {
       name: lineId.charAt(0).toUpperCase() + lineId.slice(1) + ' līnija',
       stations: {
-        // Add Rīga static schedule to every line
         'Rīga': RIGA_STATIC_SCHEDULE
       }
     };
     
     for (const station of stations) {
-      console.log(`\n  Station: ${station.name}`);
+      console.log(`\nStation: ${station.name}`);
       const schedule = await scrapeStation(station.url);
       
       if (schedule && (schedule.weekday.length > 0 || schedule.saturday.length > 0)) {
         data.lines[lineId].stations[station.name] = schedule;
       } else {
-        console.log(`  ⚠ Warning: No schedule data found for ${station.name}`);
-        // Use empty schedule as fallback
+        console.log(`  ⚠ Warning: No schedule found`);
         data.lines[lineId].stations[station.name] = {
           type: 'segments',
           weekday: [],
@@ -204,7 +186,6 @@ async function scrapeAllStations() {
         };
       }
       
-      // Wait a bit to avoid overwhelming the server
       await new Promise(resolve => setTimeout(resolve, 1500));
     }
   }
@@ -213,18 +194,18 @@ async function scrapeAllStations() {
 }
 
 async function main() {
-  console.log('\n' + '='.repeat(50));
-  console.log('Starting ViVi schedule scraper...');
-  console.log('='.repeat(50));
+  console.log('\n' + '='.repeat(60));
+  console.log('ViVi Schedule Scraper');
+  console.log('='.repeat(60));
   
   const data = await scrapeAllStations();
   
   fs.writeFileSync('schedules.json', JSON.stringify(data, null, 2));
   
-  console.log('\n' + '='.repeat(50));
-  console.log('✓ Schedules saved to schedules.json');
+  console.log('\n' + '='.repeat(60));
+  console.log('✓ SUCCESS: Schedules saved to schedules.json');
   console.log(`✓ Last updated: ${data.lastUpdated}`);
-  console.log('='.repeat(50) + '\n');
+  console.log('='.repeat(60) + '\n');
 }
 
 main().catch(console.error);
