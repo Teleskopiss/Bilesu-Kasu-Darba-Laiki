@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-01-19T21:58:11.258Z",
+  "lastUpdated": "2026-01-20T04:58:41.131Z",
   "lines": {
     "tukums": {
       "name": "Tukums līnija",
@@ -168,27 +168,15 @@
         },
         "Sloka": {
           "type": "segments",
-          "weekday": [
-            "04:30-18:20"
-          ],
-          "saturday": [
-            "04:30-18:20"
-          ],
-          "sunday": [
-            "04:30-18:20"
-          ]
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
         },
         "Tukums I": {
           "type": "segments",
-          "weekday": [
-            "06:45-15:50"
-          ],
-          "saturday": [
-            "06:45-15:50"
-          ],
-          "sunday": [
-            "06:45-15:50"
-          ]
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
         }
       }
     },
@@ -238,15 +226,9 @@
         },
         "Jelgava": {
           "type": "segments",
-          "weekday": [
-            "04:25-19:05"
-          ],
-          "saturday": [
-            "04:25-19:05"
-          ],
-          "sunday": [
-            "04:25-19:05"
-          ]
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
         }
       }
     },
@@ -267,15 +249,9 @@
         },
         "Zemitāni": {
           "type": "segments",
-          "weekday": [
-            "07:25-19:10"
-          ],
-          "saturday": [
-            "07:25-19:10"
-          ],
-          "sunday": [
-            "07:25-19:10"
-          ]
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
         }
       }
     },
@@ -296,51 +272,27 @@
         },
         "Salaspils": {
           "type": "segments",
-          "weekday": [
-            "06:10-18:35"
-          ],
-          "saturday": [
-            "06:10-18:35"
-          ],
-          "sunday": [
-            "06:10-18:35"
-          ]
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
         },
         "Ogre": {
           "type": "segments",
-          "weekday": [
-            "04:55-21:20"
-          ],
-          "saturday": [
-            "04:55-21:20"
-          ],
-          "sunday": [
-            "04:55-21:20"
-          ]
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
         },
         "Lielvārde": {
           "type": "segments",
-          "weekday": [
-            "06:30-18:00"
-          ],
-          "saturday": [
-            "06:30-18:00"
-          ],
-          "sunday": [
-            "06:30-18:00"
-          ]
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
         },
         "Aizkraukle": {
           "type": "segments",
-          "weekday": [
-            "06:05-16:05"
-          ],
-          "saturday": [
-            "06:05-16:05"
-          ],
-          "sunday": [
-            "06:05-16:05"
-          ]
+          "weekday": [],
+          "saturday": [],
+          "sunday": []
         }
       }
     }
