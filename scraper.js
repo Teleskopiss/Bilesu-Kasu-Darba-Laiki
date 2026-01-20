@@ -44,14 +44,12 @@ function normalizeTime(timeStr) {
   
   timeStr = timeStr.trim();
   
-  // Skip if it's closed or a dash
   if (timeStr.toLowerCase().includes('slēgts') || 
       timeStr.toLowerCase().includes('nedarbojas') ||
       timeStr === '-') {
     return null;
   }
   
-  // Convert "7.00 - 8.40" or "7:00 - 8:40" to "07:00-08:40"
   const match = timeStr.match(/(\d{1,2})[.:](\d{2})\s*-\s*(\d{1,2})[.:](\d{2})/);
   if (match) {
     const startHour = match[1].padStart(2, '0');
@@ -77,73 +75,170 @@ async function scrapeStation(url) {
       sunday: []
     };
     
-    // Strategy: Find ALL individual time rows in the HTML
-    // Look for elements that contain ONLY a time pattern (not part of a sentence)
+    // First, read the summary text at the top to understand expectations
+    const pageText = $('body').text();
     
-    let inWeekdaySection = false;
-    let inWeekendSection = false;
-    let inEverydaySection = false;
+    const expectsWeekdays = pageText.match(/darba\s+dien/i);
+    const expectsWeekends = pageText.match(/brīvdien/i);
+    const expectsEveryday = pageText.match(/katru\s+dien/i);
+    const weekendsClosed = pageText.match(/brīvdienās.*slēgts/i) || pageText.match(/svētku\s+dienās.*slēgts/i);
     
-    // Scan all text elements on the page
-    $('*').each((i, elem) => {
-      const text = $(elem).text().trim();
-      const directText = $(elem).contents().filter(function() {
-        return this.nodeType === 3; // Text nodes only
-      }).text().trim();
+    console.log(`  Page analysis:`);
+    console.log(`    - Mentions weekdays: ${!!expectsWeekdays}`);
+    console.log(`    - Mentions weekends: ${!!expectsWeekends}`);
+    console.log(`    - Mentions every day: ${!!expectsEveryday}`);
+    console.log(`    - Weekends explicitly closed: ${!!weekendsClosed}`);
+    
+    // METHOD 1: Try to find table with clear structure
+    let foundData = false;
+    
+    $('table').each((tableIndex, table) => {
+      const tableText = $(table).text();
       
-      // Check if this is a section header
-      if (text.match(/^Darba\s+dienās$/i)) {
-        inWeekdaySection = true;
-        inWeekendSection = false;
-        inEverydaySection = false;
-        console.log(`  Found section: Darba dienās`);
-        return;
-      }
-      if (text.match(/^Brīvdienās$/i)) {
-        inWeekdaySection = false;
-        inWeekendSection = true;
-        inEverydaySection = false;
-        console.log(`  Found section: Brīvdienās`);
-        return;
-      }
-      if (text.match(/^Katru\s+dienu$/i)) {
-        inWeekdaySection = false;
-        inWeekendSection = false;
-        inEverydaySection = true;
-        console.log(`  Found section: Katru dienu`);
-        return;
-      }
-      
-      // Check if this element contains ONLY a time range (no other text)
-      // Must be format like "7.00 - 8.40" or "7:00 - 8:40"
-      const exactTimeMatch = text.match(/^\s*\d{1,2}[.:]\d{2}\s*-\s*\d{1,2}[.:]\d{2}\s*$/);
-      
-      if (exactTimeMatch) {
-        const normalizedTime = normalizeTime(text);
-        if (normalizedTime) {
-          if (inEverydaySection) {
-            schedule.weekday.push(normalizedTime);
-            schedule.saturday.push(normalizedTime);
-            schedule.sunday.push(normalizedTime);
-            console.log(`    Every day: ${normalizedTime}`);
-          } else if (inWeekdaySection) {
-            schedule.weekday.push(normalizedTime);
-            console.log(`    Weekday: ${normalizedTime}`);
-          } else if (inWeekendSection) {
-            schedule.saturday.push(normalizedTime);
-            schedule.sunday.push(normalizedTime);
-            console.log(`    Weekend: ${normalizedTime}`);
+      // Check if this table has the time data we need
+      if (tableText.match(/\d{1,2}[.:]\d{2}\s*-\s*\d{1,2}[.:]\d{2}/)) {
+        console.log(`  Found table with time data`);
+        
+        let currentSection = null;
+        
+        $(table).find('tr, th, td, p, div').each((i, elem) => {
+          const elemText = $(elem).clone().children().remove().end().text().trim();
+          
+          // Detect section headers
+          if (elemText.match(/^Darba\s+dienās$/i)) {
+            currentSection = 'weekday';
+            console.log(`    Section: Weekdays`);
+          } else if (elemText.match(/^Brīvdienās$/i)) {
+            currentSection = 'weekend';
+            console.log(`    Section: Weekends`);
+          } else if (elemText.match(/^Katru\s+dienu$/i)) {
+            currentSection = 'everyday';
+            console.log(`    Section: Every day`);
+          } 
+          // Check if this is a pure time entry
+          else if (elemText.match(/^\d{1,2}[.:]\d{2}\s*-\s*\d{1,2}[.:]\d{2}$/)) {
+            const time = normalizeTime(elemText);
+            if (time && currentSection) {
+              if (currentSection === 'everyday') {
+                schedule.weekday.push(time);
+                schedule.saturday.push(time);
+                schedule.sunday.push(time);
+              } else if (currentSection === 'weekday') {
+                schedule.weekday.push(time);
+              } else if (currentSection === 'weekend') {
+                schedule.saturday.push(time);
+                schedule.sunday.push(time);
+              }
+              foundData = true;
+            }
           }
-        }
+        });
       }
     });
+    
+    // METHOD 2: If table method didn't work, try extracting from full page
+    if (!foundData) {
+      console.log(`  Table extraction failed, trying full page scan...`);
+      
+      let currentSection = null;
+      
+      $('*').each((i, elem) => {
+        const elemText = $(elem).clone().children().remove().end().text().trim();
+        
+        if (elemText.match(/^Darba\s+dienās$/i)) {
+          currentSection = 'weekday';
+        } else if (elemText.match(/^Brīvdienās$/i)) {
+          currentSection = 'weekend';
+        } else if (elemText.match(/^Katru\s+dienu$/i)) {
+          currentSection = 'everyday';
+        } else if (elemText.match(/^\d{1,2}[.:]\d{2}\s*-\s*\d{1,2}[.:]\d{2}$/)) {
+          const time = normalizeTime(elemText);
+          if (time && currentSection) {
+            if (currentSection === 'everyday') {
+              schedule.weekday.push(time);
+              schedule.saturday.push(time);
+              schedule.sunday.push(time);
+            } else if (currentSection === 'weekday') {
+              schedule.weekday.push(time);
+            } else if (currentSection === 'weekend') {
+              schedule.saturday.push(time);
+              schedule.sunday.push(time);
+            }
+            foundData = true;
+          }
+        }
+      });
+    }
     
     // Remove duplicates
     schedule.weekday = [...new Set(schedule.weekday)];
     schedule.saturday = [...new Set(schedule.saturday)];
     schedule.sunday = [...new Set(schedule.sunday)];
     
-    console.log(`  Final result: ${schedule.weekday.length} weekday, ${schedule.saturday.length} weekend segments`);
+    // VALIDATION: Check if we got the expected data
+    console.log(`  Extracted: ${schedule.weekday.length} weekday, ${schedule.saturday.length} weekend segments`);
+    
+    let hasError = false;
+    
+    if (expectsEveryday && (schedule.weekday.length === 0 || schedule.saturday.length === 0)) {
+      console.log(`  ⚠️ ERROR: Page says "katru dienu" but missing data!`);
+      console.log(`     Weekdays: ${schedule.weekday.length}, Weekends: ${schedule.saturday.length}`);
+      hasError = true;
+    }
+    
+    if (expectsWeekdays && schedule.weekday.length === 0) {
+      console.log(`  ⚠️ ERROR: Page mentions weekdays but no weekday data found!`);
+      hasError = true;
+    }
+    
+    if (expectsWeekends && !weekendsClosed && schedule.saturday.length === 0) {
+      console.log(`  ⚠️ ERROR: Page mentions weekends (not closed) but no weekend data found!`);
+      hasError = true;
+    }
+    
+    if (weekendsClosed && schedule.saturday.length === 0) {
+      console.log(`  ✓ Weekends correctly empty (explicitly closed)`);
+    }
+    
+    // If there's an error, try alternative extraction
+    if (hasError) {
+      console.log(`  Attempting alternative extraction method...`);
+      
+      // Look for ALL time patterns on the page, group them
+      const allTimes = [];
+      const bodyHTML = $('body').html();
+      
+      // Find all time patterns in the HTML
+      const timeRegex = /(\d{1,2}[.:]\d{2}\s*-\s*\d{1,2}[.:]\d{2})/g;
+      let match;
+      while ((match = timeRegex.exec(pageText)) !== null) {
+        const normalized = normalizeTime(match[1]);
+        if (normalized) {
+          allTimes.push(normalized);
+        }
+      }
+      
+      // Remove duplicates
+      const uniqueTimes = [...new Set(allTimes)];
+      console.log(`  Found ${uniqueTimes.length} unique time segments in total`);
+      
+      // Apply based on page context
+      if (expectsEveryday && uniqueTimes.length > 0) {
+        console.log(`  Applying all times to every day (katru dienu)`);
+        schedule.weekday = uniqueTimes;
+        schedule.saturday = uniqueTimes;
+        schedule.sunday = uniqueTimes;
+      } else if (expectsWeekdays && schedule.weekday.length === 0 && uniqueTimes.length > 0) {
+        console.log(`  Applying all times to weekdays only`);
+        schedule.weekday = uniqueTimes;
+        if (weekendsClosed) {
+          schedule.saturday = [];
+          schedule.sunday = [];
+        }
+      }
+    }
+    
+    console.log(`  Final: ${schedule.weekday.length} weekday, ${schedule.saturday.length} weekend segments`);
     
     return schedule;
   } catch (error) {
@@ -157,6 +252,8 @@ async function scrapeAllStations() {
     lastUpdated: new Date().toISOString(),
     lines: {}
   };
+  
+  let errorCount = 0;
   
   for (const [lineId, stations] of Object.entries(STATIONS)) {
     console.log(`\n${'='.repeat(60)}`);
@@ -177,7 +274,8 @@ async function scrapeAllStations() {
       if (schedule && (schedule.weekday.length > 0 || schedule.saturday.length > 0)) {
         data.lines[lineId].stations[station.name] = schedule;
       } else {
-        console.log(`  ⚠ Warning: No schedule found`);
+        console.log(`  ⚠️ WARNING: No schedule found for ${station.name}`);
+        errorCount++;
         data.lines[lineId].stations[station.name] = {
           type: 'segments',
           weekday: [],
@@ -190,7 +288,7 @@ async function scrapeAllStations() {
     }
   }
   
-  return data;
+  return { data, errorCount };
 }
 
 async function main() {
@@ -198,13 +296,16 @@ async function main() {
   console.log('ViVi Schedule Scraper');
   console.log('='.repeat(60));
   
-  const data = await scrapeAllStations();
+  const { data, errorCount } = await scrapeAllStations();
   
   fs.writeFileSync('schedules.json', JSON.stringify(data, null, 2));
   
   console.log('\n' + '='.repeat(60));
   console.log('✓ SUCCESS: Schedules saved to schedules.json');
   console.log(`✓ Last updated: ${data.lastUpdated}`);
+  if (errorCount > 0) {
+    console.log(`⚠️  ${errorCount} station(s) had issues - check logs above`);
+  }
   console.log('='.repeat(60) + '\n');
 }
 
