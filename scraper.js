@@ -202,7 +202,36 @@ async function scrapeStation(url) {
     
     console.log(`  Extracted: ${schedule.weekday.length} weekday, ${schedule.weekend.length} weekend segments`);
     
-    // VALIDATION & FIXING
+    // VALIDATION: Check if we got the expected data
+    let hasError = false;
+    
+    if (expectsEveryday && (schedule.weekday.length === 0 || schedule.weekend.length === 0)) {
+      console.log(`  ⚠️ ERROR: Page says "katru dienu" but missing data!`);
+      console.log(`     Weekdays: ${schedule.weekday.length}, Weekends: ${schedule.weekend.length}`);
+      hasError = true;
+    }
+    
+    if (expectsWeekdays && schedule.weekday.length === 0 && !weekendsClosed) {
+      console.log(`  ⚠️ ERROR: Page mentions weekdays but no weekday data found!`);
+      hasError = true;
+    }
+    
+    if (expectsWeekends && !weekendsClosed && schedule.weekend.length === 0 && schedule.weekday.length > 0) {
+      console.log(`  ⚠️ ERROR: Page mentions weekends (not closed) but no weekend data found!`);
+      hasError = true;
+    }
+    
+    // If both weekday and weekend are empty and we expected data, it's a scraping failure
+    if (schedule.weekday.length === 0 && schedule.weekend.length === 0 && !weekendsClosed && (expectsWeekdays || expectsEveryday)) {
+      console.log(`  ⚠️ CRITICAL: No data extracted at all - scraping failed!`);
+      return null; // Return null to indicate complete failure
+    }
+    
+    if (weekendsClosed && schedule.weekend.length === 0) {
+      console.log(`  ✓ Weekends correctly empty (explicitly closed)`);
+    }
+    
+    // FIX: Use summary times to adjust schedules if needed
     let needsFix = false;
     
     if (expectsWeekends && !weekendsClosed && schedule.weekend.length === 0 && summary.weekendStart) {
@@ -214,6 +243,8 @@ async function scrapeStation(url) {
       console.log(`  ⚠️ "Katru dienu" but missing data`);
       needsFix = true;
     }
+    
+    // FIX: Use summary times to adjust schedules if needed
     
     // FIX: Use summary times to adjust schedules if needed
     if (needsFix && summary.weekendStart && summary.weekdayStart) {
@@ -289,10 +320,12 @@ async function scrapeAllStations() {
       } else {
         console.log(`  ⚠️ WARNING: No schedule found for ${station.name}`);
         errorCount++;
+        // Mark as data unavailable - completely empty object means no data
         data.lines[lineId].stations[station.name] = {
           type: 'segments',
-          weekday: [],
-          weekend: []
+          weekday: null,
+          weekend: null,
+          dataUnavailable: true
         };
       }
       
