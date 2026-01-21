@@ -72,6 +72,22 @@
             font-style: italic;
         }
 
+        .last-updated.error {
+            color: #ef4444;
+            font-weight: 600;
+        }
+
+        .error-banner {
+            background: #7f1d1d;
+            color: #fecaca;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 14px;
+            border: 1px solid #991b1b;
+        }
+
         .line-selector {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -237,11 +253,22 @@
             background: #fbbf24;
         }
 
+        .status-recently-closed {
+            background: #f59e0b;
+        }
+        .status-recently-closed::before {
+            background: #f59e0b;
+        }
+
         .status-closed {
             background: #ef4444;
         }
         .status-closed::before {
             background: #ef4444;
+        }
+
+        .status-error {
+            background: #7f1d1d;
         }
 
         @keyframes pulse {
@@ -270,6 +297,19 @@
             background: rgba(51, 65, 85, 0.5);
             border-radius: 8px;
             border-left: 3px solid #64748b;
+        }
+
+        .detail-line.error {
+            background: rgba(127, 29, 29, 0.5);
+            border-left-color: #ef4444;
+            color: #fecaca;
+        }
+
+        .detail-line.permanent-notice {
+            background: rgba(127, 29, 29, 0.5);
+            border-left-color: #ef4444;
+            color: #fecaca;
+            font-weight: 600;
         }
 
         @media (max-width: 480px) {
@@ -377,33 +417,59 @@
     <script>
         let LINES = {};
         let stationCooldowns = {};
+        let lastUpdatedDate = null;
+        let dataLoadFailed = false;
+
+        const PERMANENT_NOTICES = {
+            'Dubulti': 'Pavisam ciet, vairs nestrādā!'
+        };
 
         const DAY_TRANSLATIONS = {
             'weekday': 'darbadiena',
-            'saturday': 'sestdiena',
-            'sunday': 'svētdiena'
+            'weekend': 'brīvdiena'
         };
 
-        // Load data from schedules.json or use fallback
         async function loadScheduleData() {
             try {
                 const response = await fetch('schedules.json');
                 const data = await response.json();
                 LINES = data.lines;
+                lastUpdatedDate = new Date(data.lastUpdated);
                 
-                // Update last updated text
-                const date = new Date(data.lastUpdated);
-                const formatted = date.toLocaleDateString('lv-LV', { 
+                const now = new Date();
+                const daysDiff = Math.floor((now - lastUpdatedDate) / (1000 * 60 * 60 * 24));
+                
+                const formatted = lastUpdatedDate.toLocaleDateString('lv-LV', { 
                     day: 'numeric', 
                     month: 'short', 
                     year: 'numeric' 
                 });
-                document.getElementById('lastUpdated').textContent = `Pēdējoreiz dati atjaunoti: ${formatted}`;
+                
+                const lastUpdatedEl = document.getElementById('lastUpdated');
+                
+                if (daysDiff > 60) {
+                    lastUpdatedEl.textContent = `Kļūda iegūt datus! Rāda informāciju no ${formatted}`;
+                    lastUpdatedEl.classList.add('error');
+                    dataLoadFailed = true;
+                } else {
+                    lastUpdatedEl.textContent = `Pēdējoreiz dati atjaunoti: ${formatted}`;
+                }
             } catch (error) {
-                console.log('Could not load schedules.json, using fallback data');
-                // Fallback to hardcoded data
+                console.error('Failed to load schedules.json:', error);
                 LINES = getFallbackData();
-                document.getElementById('lastUpdated').textContent = 'Kļūda! Tiek izmantoti iespējams nepareizi dati!';
+                const fallbackDate = new Date('2026-01-20T13:19:22.435Z');
+                lastUpdatedDate = fallbackDate;
+                
+                const formatted = fallbackDate.toLocaleDateString('lv-LV', { 
+                    day: 'numeric', 
+                    month: 'short', 
+                    year: 'numeric' 
+                });
+                
+                const lastUpdatedEl = document.getElementById('lastUpdated');
+                lastUpdatedEl.textContent = `Kļūda iegūt datus! Rāda informāciju no ${formatted}`;
+                lastUpdatedEl.classList.add('error');
+                dataLoadFailed = true;
             }
             
             updateStations();
@@ -411,152 +477,10 @@
 
         function getFallbackData() {
             return {
-                tukums: {
-                    name: 'Tukuma līnija',
-                    stations: {
-                        'Rīga': { 
-                            type: 'segments',
-                            weekday: ['04:35-23:50'],
-                            saturday: ['04:35-23:50'],
-                            sunday: ['04:35-23:50']
-                        },
-                        'Torņakalns': {
-                            type: 'segments',
-                            weekday: ['07:00-09:10', '09:20-12:05', '12:20-13:05', '13:15-15:40', '15:50-17:00'],
-                            saturday: ['07:00-09:10', '09:20-12:05', '12:20-13:05', '13:15-15:40', '15:50-17:00'],
-                            sunday: []
-                        },
-                        'Zasulauks': {
-                            type: 'segments',
-                            weekday: ['06:55-08:50', '09:00-10:40', '11:00-13:40', '14:00-16:25', '16:30-17:55', '18:00-18:55'],
-                            saturday: ['06:55-08:50', '09:00-10:40', '11:00-13:40', '14:00-16:25', '16:30-17:55', '18:00-18:55'],
-                            sunday: ['06:55-08:50', '09:00-10:40', '11:00-13:40', '14:00-16:25', '16:30-17:55', '18:00-18:55']
-                        },
-                        'Zolitūde': {
-                            type: 'segments',
-                            weekday: ['06:50-10:20', '10:35-13:20', '13:45-14:50', '15:05-17:20', '17:25-18:50'],
-                            saturday: ['06:50-10:20', '10:35-13:20', '13:45-14:50', '15:05-17:20', '17:25-18:50'],
-                            sunday: ['06:50-10:20', '10:35-13:20', '13:45-14:50', '15:05-17:20', '17:25-18:50']
-                        },
-                        'Imanta': {
-                            type: 'segments',
-                            weekday: ['06:35-08:30', '08:40-10:50', '10:00-15:20', '11:05-12:50', '13:05-14:45', '14:55-17:30', '17:40-18:50'],
-                            saturday: ['06:35-08:30', '08:40-10:50', '10:00-15:20', '11:05-12:50', '13:05-14:45', '14:55-17:30', '17:40-18:50'],
-                            sunday: ['06:35-08:30', '08:40-10:50', '10:00-15:20', '11:05-12:50', '13:05-14:45', '14:55-17:30', '17:40-18:50']
-                        },
-                        'Bulduri': {
-                            type: 'segments',
-                            weekday: ['07:10-09:35', '09:50-11:35', '11:50-13:35', '13:50-15:35', '15:45-18:10'],
-                            saturday: ['07:10-09:35', '09:50-11:35', '11:50-13:35', '13:50-15:35', '15:45-18:10'],
-                            sunday: ['07:10-09:35', '09:50-11:35', '11:50-13:35', '13:50-15:35', '15:45-18:10']
-                        },
-                        'Majori': {
-                            type: 'segments',
-                            weekday: ['07:15-09:35', '09:50-11:35', '11:50-13:35', '13:50-15:35', '15:45-17:35', '17:40-19:05'],
-                            saturday: ['07:15-09:35', '09:50-11:35', '11:50-13:35', '13:50-15:35', '15:45-17:35', '17:40-19:05'],
-                            sunday: ['07:15-09:35', '09:50-11:35', '11:50-13:35', '13:50-15:35', '15:45-17:35', '17:40-19:05']
-                        },
-                        'Dubulti': {
-                            type: 'segments',
-                            weekday: ['07:10-09:35', '09:45-10:25', '10:40-13:25', '13:40-15:25', '15:40-17:25', '17:30-18:10'],
-                            saturday: ['07:45-09:35', '09:45-10:25', '10:40-13:25', '13:40-15:25', '15:40-17:25'],
-                            sunday: ['07:45-09:35', '09:45-10:25', '10:40-13:25', '13:40-15:25', '15:40-17:25']
-                        },
-                        'Sloka': {
-                            type: 'segments',
-                            weekday: ['04:55-07:40', '07:50-09:40', '09:55-12:40', '12:55-14:40', '14:55-16:40', '16:55-18:45', '18:55-19:45'],
-                            saturday: ['04:55-07:40', '07:50-09:40', '09:55-12:40', '12:55-14:40', '14:55-16:40', '16:55-18:45', '18:55-19:45'],
-                            sunday: ['04:55-07:40', '07:50-09:40', '09:55-12:40', '12:55-14:40', '14:55-16:40', '16:55-18:45', '18:55-19:45']
-                        },
-                        'Tukums I': {
-                            type: 'segments',
-                            weekday: ['06:30-08:15', '08:30-09:15', '09:45-11:15', '12:30-15:15', '15:30-16:15', '16:30-17:15'],
-                            saturday: ['06:30-08:15', '08:30-09:15', '09:45-11:15', '12:30-15:15', '15:30-16:15', '16:30-17:15'],
-                            sunday: ['06:30-08:15', '08:30-09:15', '09:45-11:15', '12:30-15:15', '15:30-16:15', '16:30-17:15']
-                        }
-                    }
-                },
-                jelgavas: {
-                    name: 'Jelgavas līnija',
-                    stations: {
-                        'Rīga': { 
-                            type: 'segments',
-                            weekday: ['04:35-23:50'],
-                            saturday: ['04:35-23:50'],
-                            sunday: ['04:35-23:50']
-                        },
-                        'Torņakalns': {
-                            type: 'segments',
-                            weekday: ['07:00-09:10', '09:20-12:05', '12:20-13:05', '13:15-15:40', '15:50-17:00'],
-                            saturday: ['07:00-09:10', '09:20-12:05', '12:20-13:05', '13:15-15:40', '15:50-17:00'],
-                            sunday: []
-                        },
-                        'Olaine': {
-                            type: 'segments',
-                            weekday: ['04:45-06:35', '06:40-09:00', '09:20-12:00', '12:35-15:05', '15:30-17:35', '17:45-19:35'],
-                            saturday: ['06:30-09:00', '09:20-12:05', '12:35-15:05', '15:30-18:05'],
-                            sunday: ['06:30-09:00', '09:20-12:05', '12:35-15:05', '15:30-18:05']
-                        },
-                        'Jelgava': {
-                            type: 'segments',
-                            weekday: ['04:25-06:38', '06:48-08:40', '09:00-09:40', '10:10-11:40', '12:10-13:40', '14:20-14:38', '15:20-15:38', '16:20-19:10'],
-                            saturday: ['04:25-06:38', '06:48-08:40', '09:00-09:40', '10:10-11:40', '12:10-13:40', '14:20-14:38', '15:20-15:38', '16:20-19:10'],
-                            sunday: ['04:25-06:38', '06:48-08:40', '09:00-09:40', '10:10-11:40', '12:10-13:40', '14:20-14:38', '15:20-15:38', '16:20-19:10']
-                        }
-                    }
-                },
-                skulte: {
-                    name: 'Skultes līnija',
-                    stations: {
-                        'Rīga': { 
-                            type: 'segments',
-                            weekday: ['04:35-23:50'],
-                            saturday: ['04:35-23:50'],
-                            sunday: ['04:35-23:50']
-                        },
-                        'Zemitāni': {
-                            type: 'segments',
-                            weekday: ['06:30-09:00', '09:10-11:50', '12:00-13:50', '14:00-15:45', '16:05-19:00'],
-                            saturday: ['07:15-09:00', '09:10-11:50', '12:00-13:50', '14:00-15:45', '16:05-19:00'],
-                            sunday: ['07:15-09:00', '09:10-11:50', '12:00-13:50', '14:00-15:45', '16:05-19:00']
-                        }
-                    }
-                },
-                aizkraukles: {
-                    name: 'Aizkraukles līnija',
-                    stations: {
-                        'Rīga': { 
-                            type: 'segments',
-                            weekday: ['04:35-23:50'],
-                            saturday: ['04:35-23:50'],
-                            sunday: ['04:35-23:50']
-                        },
-                        'Salaspils': {
-                            type: 'segments',
-                            weekday: ['06:05-08:25', '08:35-11:25', '11:55-12:25', '12:55-14:05', '14:20-16:05', '16:15-18:35'],
-                            saturday: ['06:05-08:25', '08:35-11:25', '11:55-12:25', '12:55-14:05', '14:20-16:05', '16:15-18:35'],
-                            sunday: ['06:05-08:25', '08:35-11:25', '11:55-12:25', '12:55-14:05', '14:20-16:05', '16:15-18:35']
-                        },
-                        'Ogre': {
-                            type: 'segments',
-                            weekday: ['05:00-06:10', '06:20-08:50', '09:10-11:25', '11:55-14:10', '14:40-16:20', '16:30-19:45', '19:55-21:20'],
-                            saturday: ['05:00-06:10', '06:20-08:50', '09:10-11:25', '11:55-14:10', '14:40-16:20', '16:30-19:45', '19:55-21:20'],
-                            sunday: ['05:00-06:10', '06:20-08:50', '09:10-11:25', '11:55-14:10', '14:40-16:20', '16:30-19:45', '19:55-21:20']
-                        },
-                        'Lielvārde': {
-                            type: 'segments',
-                            weekday: ['06:30-09:30', '09:45-10:55', '11:10-12:55', '13:30-15:30', '15:45-17:55'],
-                            saturday: ['06:30-09:30', '09:45-10:55', '11:10-12:55', '13:30-15:30', '15:45-17:55'],
-                            sunday: ['06:30-09:30', '09:45-10:55', '11:10-12:55', '13:30-15:30', '15:45-17:55']
-                        },
-                        'Aizkraukle': {
-                            type: 'segments',
-                            weekday: ['06:00-08:15', '08:30-09:55', '09:10-11:30', '12:00-13:05', '13:15-16:10'],
-                            saturday: ['06:00-08:15', '08:30-09:55', '09:10-11:30', '12:00-13:05', '13:15-16:10'],
-                            sunday: ['06:00-08:15', '08:30-09:55', '09:10-11:30', '12:00-13:05', '13:15-16:10']
-                        }
-                    }
-                }
+                "tukums": {"name": "Tukuma līnija", "stations": {"Rīga": {"type": "segments", "weekday": ["04:35-23:50"], "weekend": ["04:35-23:50"]}, "Torņakalns": {"type": "segments", "weekday": ["07:00-08:40", "08:55-12:00", "12:15-13:15", "13:25-15:20"], "weekend": []}, "Zasulauks": {"type": "segments", "weekday": ["06:55-08:50", "09:00-10:50", "11:10-12:25", "12:40-14:30", "14:40-16:30", "16:40-17:55"], "weekend": ["07:55-08:50", "09:00-10:50", "11:10-12:25", "12:40-14:30", "14:40-16:30", "16:40-17:55"]}, "Zolitūde": {"type": "segments", "weekday": ["06:50-07:45", "07:55-09:45", "09:55-11:30", "11:40-13:30", "13:50-15:30", "15:40-17:30", "17:40-18:05"], "weekend": ["07:50-09:45", "09:55-11:30", "11:40-13:30", "13:50-15:30", "15:40-17:30", "17:40-18:05"]}, "Imanta": {"type": "segments", "weekday": ["06:35-08:00", "08:10-09:15", "09:25-11:15", "11:25-13:05", "13:20-15:30", "15:40-17:00", "17:10-18:30"], "weekend": ["07:35-08:00", "08:10-09:15", "09:25-11:15", "11:25-13:05", "13:20-15:30", "15:40-17:00", "17:10-18:30"]}, "Bulduri": {"type": "segments", "weekday": ["07:20-09:35", "09:50-11:35", "11:50-13:20", "13:35-15:20", "15:35-18:20"], "weekend": ["08:20-09:35", "09:50-11:35", "11:50-13:20", "13:35-15:20", "15:35-18:20"]}, "Majori": {"type": "segments", "weekday": ["07:15-09:15", "09:25-11:20", "11:30-13:25", "13:35-15:25", "15:35-17:25", "17:35-18:45"], "weekend": ["08:15-09:15", "09:25-11:20", "11:30-13:25", "13:35-15:25", "15:35-17:25", "17:35-18:45"]}, "Dubulti": {"type": "segments", "weekday": [], "weekend": []}, "Sloka": {"type": "segments", "weekday": ["04:30-07:35", "07:50-09:35", "09:55-11:35", "11:55-14:20", "14:40-16:20", "16:35-18:20"], "weekend": ["04:30-07:35", "07:50-09:35", "09:55-11:35", "11:55-14:20", "14:40-16:20", "16:35-18:20"]}, "Tukums I": {"type": "segments", "weekday": ["06:45-08:05", "08:35-09:05", "09:35-11:55", "12:55-13:50", "14:05-15:50"], "weekend": ["06:45-08:05", "08:35-09:05", "09:35-11:55", "12:55-13:50", "14:05-15:50"]}}},
+                "jelgavas": {"name": "Jelgavas līnija", "stations": {"Rīga": {"type": "segments", "weekday": ["04:35-23:50"], "weekend": ["04:35-23:50"]}, "Torņakalns": {"type": "segments", "weekday": ["07:00-08:40", "08:55-12:00", "12:15-13:15", "13:25-15:20"], "weekend": []}, "Olaine": {"type": "segments", "weekday": ["06:45-10:05", "10:25-12:05", "12:35-15:05", "15:30-18:25"], "weekend": ["06:45-10:05", "10:25-12:05", "12:35-15:05", "15:30-17:35"]}, "Jelgava": {"type": "segments", "weekday": ["04:25-06:56", "07:06-08:57", "09:07-09:39", "10:10-11:39", "12:10-13:39", "14:20-14:39", "15:20-15:39", "16:20-16:53", "17:03-19:05"], "weekend": ["04:25-06:56", "07:06-08:57", "09:07-09:39", "10:10-11:39", "12:10-13:39", "14:20-14:39", "15:20-15:39", "16:20-16:53", "17:03-19:05"]}}},
+                "skulte": {"name": "Skultes līnija", "stations": {"Rīga": {"type": "segments", "weekday": ["04:35-23:50"], "weekend": ["04:35-23:50"]}, "Zemitāni": {"type": "segments", "weekday": ["07:25-09:20", "09:35-12:20", "12:35-14:20", "14:35-17:35", "17:45-19:10"], "weekend": ["07:25-09:20", "09:35-12:20", "12:35-14:20", "14:35-17:35", "17:45-19:10"]}}},
+                "aizkraukles": {"name": "Aizkraukles līnija", "stations": {"Rīga": {"type": "segments", "weekday": ["04:35-23:50"], "weekend": ["04:35-23:50"]}, "Salaspils": {"type": "segments", "weekday": ["06:10-08:35", "08:50-11:30", "11:55-13:35", "14:05-15:00", "15:15-16:05", "16:15-18:35"], "weekend": ["06:10-08:35", "08:50-11:30", "11:55-13:35", "14:05-15:00", "15:15-16:05", "16:15-18:35"]}, "Ogre": {"type": "segments", "weekday": ["04:55-06:10", "06:20-09:10", "09:30-11:10", "11:40-13:35", "13:50-16:20", "16:30-19:55", "20:05-21:20"], "weekend": ["04:55-06:10", "06:20-09:10", "09:30-11:10", "11:40-13:35", "13:50-16:20", "16:30-19:55", "20:05-21:20"]}, "Lielvārde": {"type": "segments", "weekday": ["06:30-09:30", "09:45-10:55", "11:10-13:55", "14:25-18:00"], "weekend": ["06:30-09:30", "09:45-10:55", "11:10-13:55", "14:25-18:00"]}, "Aizkraukle": {"type": "segments", "weekday": ["06:05-08:20", "08:35-09:55", "10:10-11:30", "12:00-13:05", "13:15-16:05"], "weekend": ["06:05-08:20", "08:35-09:55", "10:10-11:30", "12:00-13:05", "13:15-16:05"]}}}
             };
         }
 
@@ -578,9 +502,7 @@
 
         function getCurrentDay() {
             const day = new Date().getDay();
-            if (day === 0) return 'sunday';
-            if (day === 6) return 'saturday';
-            return 'weekday';
+            return (day === 0 || day === 6) ? 'weekend' : 'weekday';
         }
 
         function parseSchedule(scheduleArray) {
@@ -590,7 +512,16 @@
             });
         }
 
-        function getStationStatus(stationData) {
+        function getStationStatus(stationData, stationName) {
+            // Check for permanent notice
+            if (PERMANENT_NOTICES[stationName]) {
+                return { 
+                    status: 'closed', 
+                    message: 'Nestrādā vispār', 
+                    details: 'Pavisam ciet, vairs nestrādā'
+                };
+            }
+
             if (stationData.type === '24h') {
                 return { status: 'open', message: 'Atvērts 24/7', details: 'Vienmēr pieejams' };
             }
@@ -601,15 +532,20 @@
             
             const schedule = stationData[day] || [];
             
+            // Check if data is missing for today
+            if (!stationData[day]) {
+                return { status: 'error', message: 'Kaut kas nogāja greizi ielādējot datus', details: 'Dati nav pieejami', isError: true };
+            }
+            
             if (schedule.length === 0) {
-                return { status: 'closed', message: 'Šodien slēgts', details: 'Šodien nedarbojas' };
+                return { status: 'closed', message: 'Šodien slēgts', details: 'Šodien nedarbojas', weekendClosed: true };
             }
 
             const segments = parseSchedule(schedule);
 
-            // Pārbauda, vai tikko atvērts (15 minūšu robežās no atvēršanas)
+            // Check if recently opened (10 minutes)
             for (const segment of segments) {
-                if (currentMin >= segment.startMin && currentMin <= segment.startMin + 15) {
+                if (currentMin >= segment.startMin && currentMin <= segment.startMin + 10) {
                     return { 
                         status: 'recently-opened', 
                         message: 'Tikko atvērts',
@@ -618,7 +554,18 @@
                 }
             }
 
-            // Pārbauda, vai pašlaik atvērts
+            // Check if recently closed (10 minutes)
+            for (const segment of segments) {
+                if (currentMin > segment.endMin && currentMin <= segment.endMin + 10) {
+                    return { 
+                        status: 'recently-closed', 
+                        message: 'Tikko slēgts',
+                        details: `Slēgts plkst. ${segment.end}`
+                    };
+                }
+            }
+
+            // Check if currently open
             for (const segment of segments) {
                 if (currentMin >= segment.startMin && currentMin <= segment.endMin) {
                     const remaining = segment.endMin - currentMin;
@@ -637,7 +584,7 @@
                 }
             }
 
-            // Atrod nākamo atvēršanas laiku
+            // Find next opening time
             for (const segment of segments) {
                 if (currentMin < segment.startMin) {
                     return { 
@@ -648,17 +595,18 @@
                 }
             }
 
-            // Ja visi darba laiki šodien ir beidzušies
             return { status: 'closed', message: 'Šodien vairs nestrādā', details: 'Šodien vairs nestrādā' };
         }
 
         function createStationHTML(name, data) {
-            const status = getStationStatus(data);
+            const status = getStationStatus(data, name);
             const day = getCurrentDay();
             
             let scheduleText = 'Nav grafika';
             if (data.type === '24h') {
                 scheduleText = '24/7 apkalpošana';
+            } else if (status.isError) {
+                scheduleText = '<span class="detail-line error">Kaut kas nogāja greizi ielādējot datus</span>';
             } else if (data[day] && data[day].length > 0) {
                 const dayName = DAY_TRANSLATIONS[day] || day;
                 scheduleText = `${dayName.charAt(0).toUpperCase() + dayName.slice(1)}: ${data[day].join(', ')}`;
@@ -666,6 +614,8 @@
                 const dayName = DAY_TRANSLATIONS[day] || day;
                 scheduleText = `${dayName.charAt(0).toUpperCase() + dayName.slice(1)}: Slēgts`;
             }
+
+            const permanentNoticeHTML = '';
 
             return `
                 <div class="station" data-station="${name}">
@@ -677,7 +627,7 @@
                         <div class="status-dot status-${status.status}"></div>
                     </div>
                     <div class="station-details">
-                        <div class="detail-line"><strong>Statuss:</strong> ${status.details}</div>
+                        <div class="detail-line ${status.isError ? 'error' : ''}"><strong>Statuss:</strong> ${status.details}</div>
                         <div class="detail-line"><strong>Darba laiks:</strong> ${scheduleText}</div>
                     </div>
                 </div>
@@ -728,17 +678,17 @@
             stationElement.classList.toggle('expanded');
         }
 
-        // Inicializācija
+        // Initialization
         updateClock();
         loadScheduleData();
 
-        // Automātiski atjauno ik pēc 30 sekundēm
+        // Auto-refresh every 30 seconds
         setInterval(() => {
             updateClock();
             updateStations();
         }, 30000);
 
-        // Atjauno pulksteni katru sekundi
+        // Update clock every second
         setInterval(updateClock, 1000);
     </script>
 </body>
