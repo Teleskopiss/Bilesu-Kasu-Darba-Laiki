@@ -62,7 +62,6 @@ function normalizeTime(timeStr) {
 }
 
 function extractSummaryTimes(pageText) {
-  // Extract summary times from the top text
   const summary = {
     weekdayStart: null,
     weekdayEnd: null,
@@ -70,7 +69,6 @@ function extractSummaryTimes(pageText) {
     weekendEnd: null
   };
   
-  // "darba dienās no plkst. 7.00 līdz 15.20"
   const weekdayMatch = pageText.match(/darba\s+dienās[^0-9]*no\s+plkst[.\s]*(\d{1,2}[.:]\d{2})[^0-9]*līdz[^0-9]*(\d{1,2}[.:]\d{2})/i);
   if (weekdayMatch) {
     summary.weekdayStart = weekdayMatch[1].replace('.', ':');
@@ -78,7 +76,6 @@ function extractSummaryTimes(pageText) {
     console.log(`  Summary weekday hours: ${summary.weekdayStart} - ${summary.weekdayEnd}`);
   }
   
-  // "brīvdienās no plkst. 8.00 līdz 16.20" or "brīvdienās no 8.00 līdz 16.20"
   const weekendMatch = pageText.match(/brīvdienās[^0-9]*(?:no\s+plkst[.\s]*)?(\d{1,2}[.:]\d{2})[^0-9]*līdz[^0-9]*(\d{1,2}[.:]\d{2})/i);
   if (weekendMatch) {
     summary.weekendStart = weekendMatch[1].replace('.', ':');
@@ -102,8 +99,6 @@ async function scrapeStation(url) {
     };
     
     const pageText = $('body').text();
-    
-    // Extract summary times
     const summary = extractSummaryTimes(pageText);
     
     const expectsWeekdays = pageText.match(/darba\s+dien/i);
@@ -117,23 +112,20 @@ async function scrapeStation(url) {
     console.log(`    - Mentions every day: ${!!expectsEveryday}`);
     console.log(`    - Weekends explicitly closed: ${!!weekendsClosed}`);
     
-    // METHOD 1: Try TABLE extraction with TWO columns
+    // Extract data from tables
     let foundTable = false;
     
     $('table').each((tableIndex, table) => {
       const rows = $(table).find('tr');
-      
       if (rows.length === 0) return;
       
-      console.log(`  Checking table ${tableIndex + 1}...`);
-      
-      // Check if this table has time data
       const tableText = $(table).text();
       if (!tableText.match(/\d{1,2}[.:]\d{2}\s*-\s*\d{1,2}[.:]\d{2}/)) {
         return;
       }
       
-      // Detect table type by checking headers
+      console.log(`  Checking table ${tableIndex + 1}...`);
+      
       let hasWeekdayHeader = false;
       let hasWeekendHeader = false;
       let hasEverydayHeader = false;
@@ -147,16 +139,13 @@ async function scrapeStation(url) {
       
       console.log(`    Headers: weekday=${hasWeekdayHeader}, weekend=${hasWeekendHeader}, everyday=${hasEverydayHeader}`);
       
-      // Extract data rows
       rows.each((rowIndex, row) => {
         const cells = $(row).find('td');
-        
-        if (cells.length === 0) return; // Skip header rows
+        if (cells.length === 0) return;
         
         const col1 = $(cells[0]).text().trim();
         const col2 = cells.length > 1 ? $(cells[1]).text().trim() : '';
         
-        // Check if col1 contains a time
         const time1 = normalizeTime(col1);
         const time2 = normalizeTime(col2);
         
@@ -164,31 +153,24 @@ async function scrapeStation(url) {
           foundTable = true;
           
           if (hasEverydayHeader) {
-            // Single column for all days
             schedule.weekday.push(time1);
-            schedule.saturday.push(time1);
-            schedule.sunday.push(time1);
+            schedule.weekend.push(time1);
             console.log(`    Every day: ${time1}`);
           } else if (hasWeekdayHeader && hasWeekendHeader) {
-            // Two columns: weekday and weekend
             schedule.weekday.push(time1);
             if (time2) {
-              schedule.saturday.push(time2);
-              schedule.sunday.push(time2);
+              schedule.weekend.push(time2);
               console.log(`    Weekday: ${time1}, Weekend: ${time2}`);
             } else {
               console.log(`    Weekday: ${time1}, Weekend: (empty)`);
             }
           } else if (hasWeekdayHeader && !hasWeekendHeader) {
-            // Only weekday column
             schedule.weekday.push(time1);
             console.log(`    Weekday only: ${time1}`);
           } else {
-            // No clear headers, assume two-column format if col2 exists
             schedule.weekday.push(time1);
             if (time2) {
-              schedule.saturday.push(time2);
-              schedule.sunday.push(time2);
+              schedule.weekend.push(time2);
               console.log(`    Assumed format - Weekday: ${time1}, Weekend: ${time2}`);
             }
           }
@@ -202,36 +184,22 @@ async function scrapeStation(url) {
     
     console.log(`  Extracted: ${schedule.weekday.length} weekday, ${schedule.weekend.length} weekend segments`);
     
-    // VALIDATION: Check if we got the expected data
-    let hasError = false;
-    
+    // Validation
     if (expectsEveryday && (schedule.weekday.length === 0 || schedule.weekend.length === 0)) {
       console.log(`  ⚠️ ERROR: Page says "katru dienu" but missing data!`);
-      console.log(`     Weekdays: ${schedule.weekday.length}, Weekends: ${schedule.weekend.length}`);
-      hasError = true;
     }
     
     if (expectsWeekdays && schedule.weekday.length === 0 && !weekendsClosed) {
       console.log(`  ⚠️ ERROR: Page mentions weekdays but no weekday data found!`);
-      hasError = true;
     }
     
-    if (expectsWeekends && !weekendsClosed && schedule.weekend.length === 0 && schedule.weekday.length > 0) {
-      console.log(`  ⚠️ ERROR: Page mentions weekends (not closed) but no weekend data found!`);
-      hasError = true;
-    }
-    
-    // If both weekday and weekend are empty and we expected data, it's a scraping failure
+    // Check if scraping completely failed
     if (schedule.weekday.length === 0 && schedule.weekend.length === 0 && !weekendsClosed && (expectsWeekdays || expectsEveryday)) {
-      console.log(`  ⚠️ CRITICAL: No data extracted at all - scraping failed!`);
-      return null; // Return null to indicate complete failure
+      console.log(`  ⚠️ CRITICAL: No data extracted - scraping failed!`);
+      return null;
     }
     
-    if (weekendsClosed && schedule.weekend.length === 0) {
-      console.log(`  ✓ Weekends correctly empty (explicitly closed)`);
-    }
-    
-    // FIX: Use summary times to adjust schedules if needed
+    // Fix weekend data if needed
     let needsFix = false;
     
     if (expectsWeekends && !weekendsClosed && schedule.weekend.length === 0 && summary.weekendStart) {
@@ -239,41 +207,27 @@ async function scrapeStation(url) {
       needsFix = true;
     }
     
-    if (expectsEveryday && (schedule.weekday.length === 0 || schedule.weekend.length === 0)) {
-      console.log(`  ⚠️ "Katru dienu" but missing data`);
-      needsFix = true;
-    }
-    
-    // FIX: Use summary times to adjust schedules if needed
-    
-    // FIX: Use summary times to adjust schedules if needed
-    if (needsFix && summary.weekendStart && summary.weekdayStart) {
+    if (needsFix && summary.weekendStart && summary.weekdayStart && schedule.weekday.length > 0) {
       console.log(`  Attempting to fix weekend schedule using summary times...`);
       
-      // Weekend schedule is usually similar to weekday but with adjusted first/last segment
-      if (schedule.weekday.length > 0 && schedule.weekend.length === 0) {
-        // Copy weekday schedule
-        schedule.weekend = [...schedule.weekday];
-        
-        // Adjust first segment if weekend starts later
-        const weekdayFirstTime = schedule.weekday[0].split('-')[0];
-        const weekendShouldStart = summary.weekendStart.padStart(5, '0').replace('.', ':');
-        
-        if (weekdayFirstTime !== weekendShouldStart) {
-          const firstSegmentEnd = schedule.weekend[0].split('-')[1];
-          schedule.weekend[0] = `${weekendShouldStart}-${firstSegmentEnd}`;
-          console.log(`    Adjusted weekend first segment to start at ${weekendShouldStart}`);
-        }
-        
-        // Adjust last segment if weekend ends earlier/later
-        const weekdayLastTime = schedule.weekday[schedule.weekday.length - 1].split('-')[1];
-        const weekendShouldEnd = summary.weekendEnd.padStart(5, '0').replace('.', ':');
-        
-        if (weekdayLastTime !== weekendShouldEnd) {
-          const lastSegmentStart = schedule.weekend[schedule.weekend.length - 1].split('-')[0];
-          schedule.weekend[schedule.weekend.length - 1] = `${lastSegmentStart}-${weekendShouldEnd}`;
-          console.log(`    Adjusted weekend last segment to end at ${weekendShouldEnd}`);
-        }
+      schedule.weekend = [...schedule.weekday];
+      
+      const weekdayFirstTime = schedule.weekday[0].split('-')[0];
+      const weekendShouldStart = summary.weekendStart.padStart(5, '0').replace('.', ':');
+      
+      if (weekdayFirstTime !== weekendShouldStart) {
+        const firstSegmentEnd = schedule.weekend[0].split('-')[1];
+        schedule.weekend[0] = `${weekendShouldStart}-${firstSegmentEnd}`;
+        console.log(`    Adjusted weekend first segment to start at ${weekendShouldStart}`);
+      }
+      
+      const weekdayLastTime = schedule.weekday[schedule.weekday.length - 1].split('-')[1];
+      const weekendShouldEnd = summary.weekendEnd.padStart(5, '0').replace('.', ':');
+      
+      if (weekdayLastTime !== weekendShouldEnd) {
+        const lastSegmentStart = schedule.weekend[schedule.weekend.length - 1].split('-')[0];
+        schedule.weekend[schedule.weekend.length - 1] = `${lastSegmentStart}-${weekendShouldEnd}`;
+        console.log(`    Adjusted weekend last segment to end at ${weekendShouldEnd}`);
       }
     }
     
@@ -317,15 +271,24 @@ async function scrapeAllStations() {
       
       if (schedule && (schedule.weekday.length > 0 || schedule.weekend.length > 0)) {
         data.lines[lineId].stations[station.name] = schedule;
-      } else {
-        console.log(`  ⚠️ WARNING: No schedule found for ${station.name}`);
+      } else if (schedule === null) {
+        // Scraping failed completely - mark as data unavailable
+        console.log(`  ⚠️ CRITICAL: Scraping failed for ${station.name}`);
         errorCount++;
-        // Mark as data unavailable - completely empty object means no data
         data.lines[lineId].stations[station.name] = {
           type: 'segments',
           weekday: null,
           weekend: null,
           dataUnavailable: true
+        };
+      } else {
+        // Both are empty arrays - station doesn't work (like closed permanently)
+        console.log(`  ⚠️ WARNING: No schedule found for ${station.name}`);
+        errorCount++;
+        data.lines[lineId].stations[station.name] = {
+          type: 'segments',
+          weekday: [],
+          weekend: []
         };
       }
       
