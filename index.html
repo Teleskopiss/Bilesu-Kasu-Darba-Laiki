@@ -522,6 +522,16 @@
                 };
             }
 
+            // Check if data is unavailable
+            if (stationData.dataUnavailable || stationData.weekday === null || stationData.weekend === null) {
+                return { 
+                    status: 'error', 
+                    message: 'Dati nav pieejami', 
+                    details: 'Nevarēja iegūt datus', 
+                    isError: true 
+                };
+            }
+
             if (stationData.type === '24h') {
                 return { status: 'open', message: 'Atvērts 24/7', details: 'Vienmēr pieejams' };
             }
@@ -530,13 +540,19 @@
             const currentMin = now.getHours() * 60 + now.getMinutes();
             const day = getCurrentDay();
             
-            const schedule = stationData[day] || [];
+            const schedule = stationData[day];
             
-            // Check if data is missing for today
-            if (!stationData[day]) {
-                return { status: 'error', message: 'Kaut kas nogāja greizi ielādējot datus', details: 'Dati nav pieejami', isError: true };
+            // Check if data is missing for today (null vs empty array)
+            if (schedule === null || schedule === undefined) {
+                return { 
+                    status: 'error', 
+                    message: 'Dati nav pieejami', 
+                    details: 'Nevarēja iegūt datus', 
+                    isError: true 
+                };
             }
             
+            // Empty array means station doesn't work on this day (intentional)
             if (schedule.length === 0) {
                 return { status: 'closed', message: 'Šodien slēgts', details: 'Šodien nedarbojas', weekendClosed: true };
             }
@@ -603,16 +619,21 @@
             const day = getCurrentDay();
             
             let scheduleText = 'Nav grafika';
-            if (data.type === '24h') {
+            
+            if (data.dataUnavailable || data.weekday === null || data.weekend === null) {
+                scheduleText = '<span style="color: #ef4444;">Nevarēja iegūt datus</span>';
+            } else if (data.type === '24h') {
                 scheduleText = '24/7 apkalpošana';
             } else if (status.isError) {
-                scheduleText = '<span class="detail-line error">Kaut kas nogāja greizi ielādējot datus</span>';
+                scheduleText = '<span style="color: #ef4444;">Nevarēja iegūt datus</span>';
             } else if (data[day] && data[day].length > 0) {
                 const dayName = DAY_TRANSLATIONS[day] || day;
                 scheduleText = `${dayName.charAt(0).toUpperCase() + dayName.slice(1)}: ${data[day].join(', ')}`;
-            } else {
+            } else if (data[day] !== null && data[day] !== undefined) {
                 const dayName = DAY_TRANSLATIONS[day] || day;
                 scheduleText = `${dayName.charAt(0).toUpperCase() + dayName.slice(1)}: Slēgts`;
+            } else {
+                scheduleText = '<span style="color: #ef4444;">Nevarēja iegūt datus</span>';
             }
 
             const permanentNoticeHTML = '';
