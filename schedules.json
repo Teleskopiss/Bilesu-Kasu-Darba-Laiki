@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-01-21T07:37:27.605Z",
+  "lastUpdated": "2026-01-21T07:45:46.421Z",
   "lines": {
     "tukums": {
       "name": "Tukums līnija",
@@ -25,43 +25,51 @@
         },
         "Zasulauks": {
           "type": "segments",
-          "weekday": [],
-          "weekend": []
+          "weekday": null,
+          "weekend": null,
+          "dataUnavailable": true
         },
         "Zolitūde": {
           "type": "segments",
-          "weekday": [],
-          "weekend": []
+          "weekday": null,
+          "weekend": null,
+          "dataUnavailable": true
         },
         "Imanta": {
           "type": "segments",
-          "weekday": [],
-          "weekend": []
+          "weekday": null,
+          "weekend": null,
+          "dataUnavailable": true
         },
         "Bulduri": {
           "type": "segments",
-          "weekday": [],
-          "weekend": []
+          "weekday": null,
+          "weekend": null,
+          "dataUnavailable": true
         },
         "Majori": {
           "type": "segments",
-          "weekday": [],
-          "weekend": []
+          "weekday": null,
+          "weekend": null,
+          "dataUnavailable": true
         },
         "Dubulti": {
           "type": "segments",
-          "weekday": [],
-          "weekend": []
+          "weekday": null,
+          "weekend": null,
+          "dataUnavailable": true
         },
         "Sloka": {
           "type": "segments",
-          "weekday": [],
-          "weekend": []
+          "weekday": null,
+          "weekend": null,
+          "dataUnavailable": true
         },
         "Tukums I": {
           "type": "segments",
-          "weekday": [],
-          "weekend": []
+          "weekday": null,
+          "weekend": null,
+          "dataUnavailable": true
         }
       }
     },
@@ -89,13 +97,15 @@
         },
         "Olaine": {
           "type": "segments",
-          "weekday": [],
-          "weekend": []
+          "weekday": null,
+          "weekend": null,
+          "dataUnavailable": true
         },
         "Jelgava": {
           "type": "segments",
-          "weekday": [],
-          "weekend": []
+          "weekday": null,
+          "weekend": null,
+          "dataUnavailable": true
         }
       }
     },
@@ -113,8 +123,9 @@
         },
         "Zemitāni": {
           "type": "segments",
-          "weekday": [],
-          "weekend": []
+          "weekday": null,
+          "weekend": null,
+          "dataUnavailable": true
         }
       }
     },
@@ -132,23 +143,27 @@
         },
         "Salaspils": {
           "type": "segments",
-          "weekday": [],
-          "weekend": []
+          "weekday": null,
+          "weekend": null,
+          "dataUnavailable": true
         },
         "Ogre": {
           "type": "segments",
-          "weekday": [],
-          "weekend": []
+          "weekday": null,
+          "weekend": null,
+          "dataUnavailable": true
         },
         "Lielvārde": {
           "type": "segments",
-          "weekday": [],
-          "weekend": []
+          "weekday": null,
+          "weekend": null,
+          "dataUnavailable": true
         },
         "Aizkraukle": {
           "type": "segments",
-          "weekday": [],
-          "weekend": []
+          "weekday": null,
+          "weekend": null,
+          "dataUnavailable": true
         }
       }
     }
