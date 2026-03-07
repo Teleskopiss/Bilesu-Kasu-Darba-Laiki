@@ -420,10 +420,6 @@
         let lastUpdatedDate = null;
         let dataLoadFailed = false;
 
-        const PERMANENT_NOTICES = {
-            'Dubulti': 'Pavisam ciet, vairs nestrādā!'
-        };
-
         const DAY_TRANSLATIONS = {
             'weekday': 'darbadiena',
             'weekend': 'brīvdiena'
@@ -513,15 +509,6 @@
         }
 
         function getStationStatus(stationData, stationName) {
-            // Check for permanent notice
-            if (PERMANENT_NOTICES[stationName]) {
-                return { 
-                    status: 'closed', 
-                    message: 'Nestrādā vispār', 
-                    details: 'Pavisam ciet, vairs nestrādā'
-                };
-            }
-
             // Check if data is unavailable
             if (stationData.dataUnavailable || stationData.weekday === null || stationData.weekend === null) {
                 return { 
@@ -635,8 +622,6 @@
             } else {
                 scheduleText = '<span style="color: #ef4444;">Nevarēja iegūt datus</span>';
             }
-
-            const permanentNoticeHTML = '';
 
             return `
                 <div class="station" data-station="${name}">
